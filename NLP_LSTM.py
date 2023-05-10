@@ -81,20 +81,20 @@ class LSTMmodel(nn.Module):
         return out, (h, c)
 
 '''训练'''
-embed_size = 64#增加每个词涵盖的特征数，提高结果精准度
-hidden_size = 512#增加神经元数量
-num_layers = 1#增加隐藏层
+embed_size = 128#增加每个词涵盖的特征数，提高结果精准度
+hidden_size = 1024#增加神经元数量
+num_layers = 2#增加隐藏层
 num_epochs = 16#增加训练次数
-batch_size = 16
+batch_size = 50
 seq_length = 30  # 序列长度，我认为是与前多少个词具有相关程度
 learning_rate = 0.001
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 corpus = Corpus()  # 构造实例
-corpus.get_file('./ch/')
+corpus.get_file('./ch1/')
 ids = corpus.get_data(batch_size)  # 获得数据
 vocab_size = len(corpus.dictionary)  # 词总数
 
-whether_train = 1
+whether_train = 0
 
 if whether_train:
     model = LSTMmodel(vocab_size, embed_size, hidden_size, num_layers).to(device)
@@ -130,66 +130,51 @@ num_samples = 500  # 生成文本的长度，可以认为是包含单词的个�
 article = str()  # 输出文本的容器
 
 '''选择1个随即单词的输入'''
-state = (torch.zeros(num_layers, 1, hidden_size).to(device),
-         torch.zeros(num_layers, 1, hidden_size).to(device))  # 初始化参数
+# state = (torch.zeros(num_layers, 1, hidden_size).to(device),
+#          torch.zeros(num_layers, 1, hidden_size).to(device))  # 初始化参数
+# prob = torch.ones(vocab_size)  # 对应模型中的outputs，相当于单词的概率分布
+# # 在字典中随机抽样单词作为开头
+# _input = torch.multinomial(prob, num_samples=1).unsqueeze(1).to(device)
+# for i in range(num_samples):
+#     output, state = model(_input, state)
+#     prob = output.exp()
+#     word_id = torch.multinomial(prob, num_samples=1).item()
+#
+#     _input.fill_(word_id)
+#     word = corpus.dictionary.idx2word[word_id]
+#     word = '\n' if word == '<eos>' else word
+#     article += word
+# print(article)
+
+'''自定义输入'''
+input_para = '青光闪动，一柄青钢剑倏地刺出，指向在年汉子左肩'
+input_words = jieba.lcut(input_para)
+print(input_words)
+input_len = len(input_words)
+input_lst = []
+for input_word in input_words:
+    lst = [corpus.dictionary.word2idx[input_word]]
+    input_lst.append(lst)
+_input = torch.Tensor(input_lst).to(device).to(dtype=torch.long)
+state = (torch.zeros(num_layers, input_len, hidden_size).to(device),
+         torch.zeros(num_layers, input_len, hidden_size).to(device))  # 初始化参数
 prob = torch.ones(vocab_size)  # 对应模型中的outputs，相当于单词的概率分布
-# 在字典中随机抽样单词作为开头
-_input = torch.multinomial(prob, num_samples=1).unsqueeze(1).to(device)
+article = ''.join(input_para)
 for i in range(num_samples):
     output, state = model(_input, state)
     prob = output.exp()
-    word_id = torch.multinomial(prob, num_samples=1).item()
-
-    _input.fill_(word_id)
-    word = corpus.dictionary.idx2word[word_id]
+    # word_id = torch.multinomial(prob, num_samples=input_len)
+    word_id = torch.multinomial(prob, num_samples=1)
+    for j in word_id:
+        word_value = j.item()
+    word_tensor = torch.Tensor([word_value]).to(device).to(dtype=torch.long)
+    _input_squeeze = _input.squeeze()
+    _input = _input_squeeze[1:]
+    _input = torch.cat((_input, word_tensor), 0).unsqueeze(1).to(dtype=torch.long)
+    word = corpus.dictionary.idx2word[word_value]
     word = '\n' if word == '<eos>' else word
     article += word
 print(article)
-
-
-'''选择10个随即单词的输入'''
-# state = (torch.zeros(num_layers, 10, hidden_size).to(device),
-#          torch.zeros(num_layers, 10, hidden_size).to(device))  # 初始化参数
-# prob = torch.ones(vocab_size)  # 对应模型中的outputs，相当于单词的概率分布
-# # 在字典中随机抽样单词作为开头
-# _input = torch.multinomial(prob, num_samples=10).unsqueeze(1).to(device)
-# for i in range(num_samples):
-#     output, state = model(_input, state)
-#     prob = output.exp()
-#
-#     word_id = torch.multinomial(prob, num_samples=1)
-#     _input = word_id
-#     for j in word_id:
-#         word_value = j.item()
-#         word = corpus.dictionary.idx2word[word_value]
-#         word = '\n' if word == '<eos>' else word
-#         article += word
-# print(article)
-'''自定义输入'''
-# input_para = '当下抽出长剑，往场中一站，倒转剑柄'
-# input_words = jieba.lcut(input_para)
-# print(input_words)
-# input_len = len(input_words)
-# input_lst = []
-# for input_word in input_words:
-#     lst = [corpus.dictionary.word2idx[input_word]]
-#     input_lst.append(lst)
-# _input = torch.Tensor(input_lst).to(device).to(dtype=torch.long)
-# state = (torch.zeros(num_layers, input_len, hidden_size).to(device),
-#          torch.zeros(num_layers, input_len, hidden_size).to(device))  # 初始化参数
-# prob = torch.ones(vocab_size)  # 对应模型中的outputs，相当于单词的概率分布
-# article = ''.join(input_para)
-# for i in range(num_samples):
-#     output, state = model(_input, state)
-#     prob = output.exp()
-#     word_id = torch.multinomial(prob, num_samples=1)
-#     _input = word_id
-#     for j in word_id:
-#         word_value = j.item()
-#         word = corpus.dictionary.idx2word[word_value]
-#         word = '\n' if word == '<eos>' else word
-#         article += word
-# print(article)
 #
 txt_name = './文本生成/'+str(num_samples)+'.txt'
 with open(txt_name, 'w', encoding="utf-8") as gen_file:
